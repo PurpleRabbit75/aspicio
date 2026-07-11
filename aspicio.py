@@ -15,14 +15,13 @@ def draw_menu(stdscr):
     # Clear and refresh the screen for a blank canvas
     stdscr.clear()
     stdscr.refresh()
-
     # Wait for input up to 1000ms (1s) — returns -1 on timeout
     stdscr.timeout(1000)
 
     # Start colors in curses
     curses.start_color()
-    curses.init_pair(1, curses.COLOR_CYAN, curses.COLOR_BLACK)
-    curses.init_pair(2, curses.COLOR_RED, curses.COLOR_BLACK)
+    # curses.init_pair(1, curses.COLOR_CYAN, curses.COLOR_BLACK)
+    # curses.init_pair(2, curses.COLOR_RED, curses.COLOR_BLACK)
     curses.init_pair(3, curses.COLOR_BLACK, curses.COLOR_WHITE)
 
     
@@ -33,6 +32,7 @@ def draw_menu(stdscr):
         # Initialization
         stdscr.clear()
         height, width = stdscr.getmaxyx()
+        addstr = stdscr.addstr
 
         # Move cursor
         if k == curses.KEY_DOWN:
@@ -65,12 +65,12 @@ def draw_menu(stdscr):
         
         def select_item(i):
             stdscr.attron(curses.color_pair(3))
-            stdscr.addstr(global_y, start_ros_data_x, ros_data_array[i][:width-1])
+            addstr(global_y, start_ros_data_x, ros_data_array[i][:width-1])
             stdscr.attroff(curses.color_pair(3))
             return get_info_window(ros_data_array, i), get_echo_window(ros_data_array, i)
         
         def print_item(i):
-            stdscr.addstr(global_y, start_ros_data_x, ros_data_array[i][:width-1])
+            addstr(global_y, start_ros_data_x, ros_data_array[i][:width-1])
         
         def get_item_type(ros_data_array, i):
             nodes, topics = ros_data_array[0:ros_data_array.index("### TOPICS ###")], ros_data_array[ros_data_array.index("### TOPICS ###")+1:]
@@ -94,30 +94,28 @@ def draw_menu(stdscr):
 
             return "Selected element not found"
         
-        def draw_info_window_box(info_window, info_window_x, info_window_y):
+        def draw_box(contents, x, y, title):
 
-            top_left = curses.ACS_ULCORNER
-            top_right = curses.ACS_URCORNER
-            bottom_left = curses.ACS_LLCORNER
-            bottom_right = curses.ACS_LRCORNER
-            vertical = curses.ACS_VLINE
-            horizontal = curses.ACS_HLINE
+            top_left = chr(9484)
+            top_right = chr(9488)
+            bottom_left = chr(9492)
+            bottom_right = chr(9496)
+            vertical = chr(9474)
+            horizontal = chr(9472)
 
-            info_window_width = max([len(i) for i in info_window.split("\n")]) + 1
-            info_window_height = len(info_window.split("\n"))
+            content_lines = contents.split("\n")
+            width = max(len(line) for line in content_lines) + 2
+            height = len(content_lines)
 
-            stdscr.addch(info_window_y - 1, info_window_x - 1, top_left)
-            stdscr.addch(info_window_y - 1, info_window_x + info_window_width + 1, top_right)
-            stdscr.addch(info_window_y + info_window_height, info_window_x - 1, bottom_left)
-            stdscr.addch(info_window_y + info_window_height, info_window_x + info_window_width + 1, bottom_right)
-            for i in range(info_window_height):
-                stdscr.addch(info_window_y + i, info_window_x - 1, vertical)
-                stdscr.addch(info_window_y + i, info_window_x + info_window_width + 1, vertical)
-            for i in range(info_window_width):
-                stdscr.addch(info_window_y - 1, info_window_x + i, horizontal)
-                stdscr.addch(info_window_y + info_window_height, info_window_x + i, horizontal)
-            
-            stdscr.addstr(info_window_y - 2, info_window_x - 1, "### INFO ###")
+            horizontal_line = horizontal * (width - 2)
+            addstr(y - 1, x - 1, top_left + horizontal_line + top_right)
+            addstr(y + height, x - 1, bottom_left + horizontal_line + bottom_right)
+
+            for i in range(height):
+                addstr(y + i, x - 1, vertical)
+                addstr(y + i, x + width - 2, vertical)
+
+            addstr(y - 2, x - 1, f"### {title} ###")
         
 
         def get_echo_window_x(ros_data_array, info_window):
@@ -129,52 +127,33 @@ def draw_menu(stdscr):
                 if (item.startswith("/")):
                     if (item in ros_data_array):
                         item_type = get_item_type(ros_data_array, i)
-                        echo_window = subprocess.run(["ros2", item_type, "echo", item], capture_output = True, text=True).stdout
+                        if item_type == "topic":
+                            try:
+                                echo_window = subprocess.run(
+                                    ["ros2", item_type, "echo", "-n", "1", item],
+                                    capture_output=True,
+                                    text=True,
+                                    timeout=1,
+                                ).stdout
+                            except subprocess.TimeoutExpired:
+                                echo_window = "No topic messages received within 1 second."
+                        else:
+                            echo_window = "Echo not applicable to selected element."
                         return echo_window
 
             return "Selected element not found"
         
-        def draw_echo_window_box(echo_window, echo_window_x, echo_window_y):
-
-            top_left = curses.ACS_ULCORNER
-            top_right = curses.ACS_URCORNER
-            bottom_left = curses.ACS_LLCORNER
-            bottom_right = curses.ACS_LRCORNER
-            vertical = curses.ACS_VLINE
-            horizontal = curses.ACS_HLINE
-
-            echo_window_width = max([len(i) for i in echo_window.split("\n")]) + 1
-            echo_window_height = len(echo_window.split("\n"))
-
-            stdscr.addch(echo_window_y - 1, echo_window_x - 1, top_left)
-            stdscr.addch(echo_window_y - 1, echo_window_x + echo_window_width + 1, top_right)
-            stdscr.addch(echo_window_y + echo_window_height, echo_window_x - 1, bottom_left)
-            stdscr.addch(echo_window_y + echo_window_height, echo_window_x + echo_window_width + 1, bottom_right)
-            for i in range(echo_window_height):
-                stdscr.addch(echo_window_y + i, echo_window_x - 1, vertical)
-                stdscr.addch(echo_window_y + i, echo_window_x + echo_window_width + 1, vertical)
-            for i in range(echo_window_width):
-                stdscr.addch(echo_window_y - 1, echo_window_x + i, horizontal)
-                stdscr.addch(echo_window_y + echo_window_height, echo_window_x + i, horizontal)
-            
-            stdscr.addstr(echo_window_y - 2, echo_window_x - 1, "### ECHO ###")
-
-
 
         
-
-        # Declaration of strings
-        statusbarstr = f"Press 'q' to exit | Pos: {cursor_x}, {cursor_y}"
-
         ros_data_array = construct_ros_data_array()
-
         start_ros_data_x = 0
         start_ros_data_y = 0
 
         # Render status bar
+        statusbarstr = f"Press 'q' to exit | Pos: {cursor_x}, {cursor_y}"
+        statusbarstr = statusbarstr + " " * (width - len(statusbarstr) - 1)
         stdscr.attron(curses.color_pair(3))
-        stdscr.addstr(height-1, 0, statusbarstr)
-        stdscr.addstr(height-1, len(statusbarstr), " " * (width - len(statusbarstr) - 1))
+        addstr(height-1, 0, statusbarstr)
         stdscr.attroff(curses.color_pair(3))
 
         # Render ROS node/topic data
@@ -192,29 +171,25 @@ def draw_menu(stdscr):
         # Render info window
         info_window_x = get_info_window_x(ros_data_array)
         info_window_y = 3
-        info_lines = info_window.splitlines()
         max_info_width = width - info_window_x - 2
-        for j, line in enumerate(info_lines):
-            if info_window_y + j >= height - 1:
-                break
-            stdscr.addstr(info_window_y + j, info_window_x, line[:max_info_width])
-        draw_info_window_box(info_window, info_window_x, info_window_y)
+        max_lines_allowed = (height - 1) - info_window_y
+        for j, line in enumerate(info_window.split("\n")[:max_lines_allowed]):
+            addstr(info_window_y + j, info_window_x, line[:max_info_width])
+        draw_box(info_window, info_window_x, info_window_y, "INFO")
 
         # Render echo window
         echo_window_x = get_echo_window_x(ros_data_array, info_window)
         echo_window_y = 3
-        echo_lines = echo_window.splitlines()
         max_echo_width = width - echo_window_x - 2
-        for j, line in enumerate(echo_lines):
-            if echo_window_y + j >= height - 1:
-                break
-            stdscr.addstr(echo_window_y + j, echo_window_x, line[:max_echo_width])
-        draw_echo_window_box(echo_window, echo_window_x, echo_window_y)
+        max_lines_allowed = (height - 1) - echo_window_y
+        for j, line in enumerate(echo_window.split("\n")[:max_lines_allowed]):
+            addstr(echo_window_y + j, echo_window_x, line[:max_echo_width])
+        draw_box(echo_window, echo_window_x, echo_window_y, "ECHO")
+        
 
         stdscr.move(cursor_y, cursor_x)
 
-        # Refresh the screen
-        stdscr.refresh()
+    
 
         return cursor_x, cursor_y
 
@@ -228,6 +203,8 @@ def draw_menu(stdscr):
         if k == ord('q'):
             break
         cursor_x, cursor_y = main_loop(k, cursor_x, cursor_y)
+        curses.doupdate()  # Refresh the screen after all updates have been made
+        stdscr.noutrefresh()
 
 
 def main():
